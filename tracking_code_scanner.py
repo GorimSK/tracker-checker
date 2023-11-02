@@ -10,16 +10,17 @@ import re
 def find_tracking_codes(page_source):
     tracking_codes = {
         'gtm': re.findall('GTM-[A-Z0-9]+', page_source),
-        'meta_pixel': re.findall('fbq\\(\'init\', \'(\\d{15,16})\'\\)', page_source),
-        'ua': re.findall('UA-\\d{4,10}-\\d{1,4}', page_source),
+        'meta_pixel': re.findall('fbq\(\'init\', \'(\d{15,16})\'\)', page_source),
+        'ua': re.findall('UA-\d{4,10}-\d{1,4}', page_source),
         'ga4': re.findall('G-[A-Z0-9]+', page_source),
-        'google_ads_remarketing': re.findall('googleadservices\\.com/pagead/conversion/(\\d+)', page_source)
+        'google_ads_remarketing': re.findall('googleadservices\.com/pagead/conversion/(\d+)', page_source)
     }
     return {key: list(set(values)) for key, values in tracking_codes.items()}
 
 
 # Function to initialize and use the headless browser
 def scan_website(url):
+    driver = None  # Initialize driver to None to ensure it's in the proper scope
     try:
         # Set up the Chrome driver options for better performance
         chrome_options = Options()
@@ -37,13 +38,6 @@ def scan_website(url):
         # Get the page source after JS execution
         page_source = driver.page_source
 
-        # Check if page_source is not None
-        if page_source is None:
-            raise ValueError("Failed to load the page source.")
-
-        # Quit the driver (close the browser)
-        driver.quit()
-
         # Find tracking codes
         tracking_codes = find_tracking_codes(page_source)
 
@@ -51,9 +45,11 @@ def scan_website(url):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
-        # Quit the driver in case of an error to avoid hanging processes
-        driver.quit()
         return {}
+    finally:
+        # Quit the driver if it was created
+        if driver is not None:
+            driver.quit()
 
 
 # Streamlit app layout
@@ -67,7 +63,7 @@ if st.button('Scan for Tracking Codes'):
     if url:
         tracking_codes = scan_website(url)
         if not tracking_codes:
-            st.write("No tracking codes were found or couldn't perform the check due to an error.")
+            st.write("No tracking codes were found or an error occurred.")
         else:
             # Check and report each tracking code
             for code_type, codes in tracking_codes.items():
@@ -80,4 +76,4 @@ if st.button('Scan for Tracking Codes'):
     else:
         st.error("Please enter a URL to check.")
 
-# Note: Make sure to run the Streamlit app using the command 'streamlit run your_script.py'
+# Run the Streamlit app with the command 'streamlit run your_script.py'
