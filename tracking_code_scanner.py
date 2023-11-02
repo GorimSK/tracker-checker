@@ -4,33 +4,28 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 import re
-import time
+
 
 # Define functions to find tracking codes using regex
-def find_tracking_codes(page_source, driver):
+def find_tracking_codes(page_source):
     tracking_codes = {
         'gtm': re.findall('GTM-[A-Z0-9]+', page_source),
-        'meta_pixel': re.findall(r"fbq\('init', '(\d{15,16})'\)", page_source),
-        'ua': re.findall('UA-\d{4,10}-\d{1,4}', page_source),
-        'ga4': re.findall('G-[A-Z0-9]+', page_source)
+        'meta_pixel': re.findall('fbq\\(\'init\', \'(\\d{15,16})\'\\)', page_source),
+        'ua': re.findall('UA-\\d{4,10}-\\d{1,4}', page_source),
+        'ga4': re.findall('G-[A-Z0-9]+', page_source),
+        'google_ads_remarketing': re.findall('googleadservices\\.com/pagead/conversion/(\\d+)', page_source)
     }
+    return {key: list(set(values)) for key, values in tracking_codes.items()}
 
-    # Extract Google Ads Remarketing requests from network logs
-    network_logs = driver.execute_script("return window.performance.getEntries();")
-    remarketing_urls = {
-        entry['name'] for entry in network_logs
-        if "googleads.g.doubleclick.net" in entry['name'] or "www.googleadservices.com" in entry['name']
-    }
-    # You can use a regex to extract specific IDs from the URLs if needed
-    tracking_codes['google_ads_remarketing'] = list(remarketing_urls)
-
-    return {key: list(set(values)) for key, values in tracking_codes.items() if values}
 
 # Function to initialize and use the headless browser
 def scan_website(url):
-    driver = None
     try:
-        # Set up the Chrome driver options
+        # Validate URL format
+        if not re.match(r'https?://', url):
+            raise ValueError("Invalid URL format. Please include http:// or https://")
+
+        # Set up the Chrome driver options for Selenium WebDriver
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
@@ -43,26 +38,21 @@ def scan_website(url):
         # Get the website
         driver.get(url)
 
-        # Wait for the page to load and JS to execute (adjust the sleep time as necessary)
-        time.sleep(5)
-
         # Get the page source after JS execution
         page_source = driver.page_source
-        if page_source is None:
-            st.error("Failed to retrieve the page source.")
-            return {}
+
+        # Quit the driver (close the browser)
+        driver.quit()
 
         # Find tracking codes
-        tracking_codes = find_tracking_codes(page_source, driver)
+        tracking_codes = find_tracking_codes(page_source)
 
         return tracking_codes
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return {}
-    finally:
-        if driver:
-            driver.quit()
+
 
 # Streamlit app layout
 st.title('Website Tracking Code Scanner')
@@ -73,22 +63,22 @@ url = st.text_input('Enter the URL of the website to check')
 # Button to check for tracking codes
 if st.button('Scan for Tracking Codes'):
     if url:
-        tracking_codes = scan_website(url)
-        found_any = False
-        # Check and report each tracking code
-        for code_type, codes in tracking_codes.items():
-            if codes:
-                found_any = True
-                st.success(f"{code_type.replace('_', ' ').title()} found:")
-                for code in codes:
-                    st.write(f"{code_type.replace('_', ' ').title()} ID: {code}")
+        try:
+            tracking_codes = scan_website(url)
+            if not tracking_codes:
+                st.write("No tracking codes were found.")
             else:
-                if code_type == 'meta_pixel':
-                    st.error("Meta Pixel not found")
-                else:
-                    st.info(f"{code_type.replace('_', ' ').title()} not found.")
-
-        if not found_any:
-            st.error("No tracking codes were found.")
+                # Check and report each tracking code
+                for code_type, codes in tracking_codes.items():
+                    if codes:
+                        st.success(f"{code_type.replace('_', ' ').title()} found:")
+                        for code in codes:
+                            st.write(f"{code_type.replace('_', ' ').title()} ID: {code}")
+                    else:
+                        st.info(f"{code_type.replace('_', ' ').title()} not found.")
+        except ValueError as ve:
+            st.error(ve)
     else:
         st.error("Please enter a URL to check.")
+
+# To run the Streamlit app, use the command: 'streamlit run your_script.py'
