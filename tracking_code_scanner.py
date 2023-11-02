@@ -21,11 +21,7 @@ def find_tracking_codes(page_source):
 # Function to initialize and use the headless browser
 def scan_website(url):
     try:
-        # Validate URL format
-        if not re.match(r'https?://', url):
-            raise ValueError("Invalid URL format. Please include http:// or https://")
-
-        # Set up the Chrome driver options for Selenium WebDriver
+        # Set up the Chrome driver options for better performance
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
@@ -41,6 +37,10 @@ def scan_website(url):
         # Get the page source after JS execution
         page_source = driver.page_source
 
+        # Check if page_source is not None
+        if page_source is None:
+            raise ValueError("Failed to load the page source.")
+
         # Quit the driver (close the browser)
         driver.quit()
 
@@ -51,6 +51,8 @@ def scan_website(url):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+        # Quit the driver in case of an error to avoid hanging processes
+        driver.quit()
         return {}
 
 
@@ -63,22 +65,19 @@ url = st.text_input('Enter the URL of the website to check')
 # Button to check for tracking codes
 if st.button('Scan for Tracking Codes'):
     if url:
-        try:
-            tracking_codes = scan_website(url)
-            if not tracking_codes:
-                st.write("No tracking codes were found.")
-            else:
-                # Check and report each tracking code
-                for code_type, codes in tracking_codes.items():
-                    if codes:
-                        st.success(f"{code_type.replace('_', ' ').title()} found:")
-                        for code in codes:
-                            st.write(f"{code_type.replace('_', ' ').title()} ID: {code}")
-                    else:
-                        st.info(f"{code_type.replace('_', ' ').title()} not found.")
-        except ValueError as ve:
-            st.error(ve)
+        tracking_codes = scan_website(url)
+        if not tracking_codes:
+            st.write("No tracking codes were found or couldn't perform the check due to an error.")
+        else:
+            # Check and report each tracking code
+            for code_type, codes in tracking_codes.items():
+                if codes:
+                    st.success(f"{code_type.replace('_', ' ').title()} found:")
+                    for code in codes:
+                        st.write(f"{code_type.replace('_', ' ').title()} ID: {code}")
+                else:
+                    st.info(f"{code_type.replace('_', ' ').title()} not found.")
     else:
         st.error("Please enter a URL to check.")
 
-# To run the Streamlit app, use the command: 'streamlit run your_script.py'
+# Note: Make sure to run the Streamlit app using the command 'streamlit run your_script.py'
