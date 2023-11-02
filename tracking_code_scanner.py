@@ -10,8 +10,8 @@ import time
 def find_tracking_codes(page_source, driver):
     tracking_codes = {
         'gtm': re.findall('GTM-[A-Z0-9]+', page_source),
-        'meta_pixel': re.findall('fbq\\(\'init\', \'(\\d{15,16})\'\\)', page_source),
-        'ua': re.findall('UA-\\d{4,10}-\\d{1,4}', page_source),
+        'meta_pixel': re.findall(r"fbq\('init', '(\d{15,16})'\)", page_source),
+        'ua': re.findall('UA-\d{4,10}-\d{1,4}', page_source),
         'ga4': re.findall('G-[A-Z0-9]+', page_source)
     }
 
@@ -28,6 +28,7 @@ def find_tracking_codes(page_source, driver):
 
 # Function to initialize and use the headless browser
 def scan_website(url):
+    driver = None
     try:
         # Set up the Chrome driver options
         chrome_options = Options()
@@ -47,18 +48,21 @@ def scan_website(url):
 
         # Get the page source after JS execution
         page_source = driver.page_source
+        if page_source is None:
+            st.error("Failed to retrieve the page source.")
+            return {}
 
         # Find tracking codes
         tracking_codes = find_tracking_codes(page_source, driver)
-
-        # Quit the driver
-        driver.quit()
 
         return tracking_codes
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return {}
+    finally:
+        if driver:
+            driver.quit()
 
 # Streamlit app layout
 st.title('Website Tracking Code Scanner')
